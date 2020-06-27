@@ -1,272 +1,291 @@
 const fs = require("fs");
-const express = require('express');
-const bodyParser = require('body-parser');
+const express = require("express");
+const bodyParser = require("body-parser");
 const app = express();
-const session = require('express-session');
+const session = require("express-session");
 const cookieParser = require("cookie-parser");
-const { connect } = require("http2");
+
+app.use(cookieParser("keyboard cat"));
+app.use(
+  session({
+    resave: false,
+    saveUninitialized: false,
+    secret: "keyboard cat",
+    cookie: {
+      httpOnly: true,
+      secure: false,
+    },
+  })
+);
 
 // post 분석을 위한 bodyParser
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({
-    extended: false
-}));
-
-// 세션 설정
-app.use(cookieParser('keyboard cat'));
-app.use(session({
-    resave: false,
-    saveUninitialized: true,
-    secret: 'keyboard cat',
-    cookie: {
-        httpOnly: true,
-        secure: false
-    }
-}));
+app.use(
+  bodyParser.urlencoded({
+    extended: false,
+  })
+);
 
 // 로그인
-// 세션 저장
-app.post('/api/auth/login', function(req, res) {
-    fs.readFile("./config/login.json", "utf-8", (err, data) => {
-        if(err) {
-            return res.status(500).end();
-        }
-        else {
-            let login = JSON.parse(data);
+app.post("/api/auth/login", function (req, res) {
+  fs.readFile("./config/login.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      let login = JSON.parse(data);
 
-            if(login.username == req.body.username && login.password == req.body.password) {
-                let result = {
-                    username: login.username,
-                    name: login.name
-                };
-                result = JSON.stringify(result);
+      if (
+        login.username == req.body.username &&
+        login.password == req.body.password
+      ) {
+        let result = { username: login.username, name: login.name };
+        result = JSON.stringify(result);
 
-                req.session.username = login.username;
-                req.session.name = login.name;
+        req.session.username = login.username;
+        req.session.name = login.name;
 
-                return res.status(200).send(result);    // send()에 end() 포함되어 있음
-            }
-            else {
-                return res.status(401).end();
-            }
-        }
-    });
-});
-
-// 세션 확인
-app.get('/api/auth/check', function(req, res) {
-    if(req.session.username && req.session.name) {
-        return res.status(200).end();
-    }
-    else {
+        return res.status(200).send(result);
+      } else {
         return res.status(401).end();
+      }
     }
-});
-
-// 로그아웃
-// 세션 삭제
-app.get('/api/auth/logout', function(req, res) {
-    req.session.destroy();
-
-    return res.status(204).end();           // 204: 내용 정상 처리됨, 콘텐츠 없음
+  });
 });
 
 // 비밀번호 변경
-app.put('/api/auth/register', function(req, res) {
-    fs.readFile("./config/login.json", "utf-8", (err, data) => {
-        if(err) {
-            return res.status(500).end();
-        }
-        else {
-            let adminInfo = JSON.parse(data);
+app.put("/api/auth/register", function (req, res) {
+  fs.readFile("./config/login.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      let adminInfo = JSON.parse(data);
 
-            if(adminInfo.username == req.body.username && adminInfo.password == req.body.oldPassword) {
-                let newPassword = req.body.newPassword;
+      if (
+        adminInfo.username == req.body.username &&
+        adminInfo.password == req.body.oldPassword
+      ) {
+        let newPassword = req.body.newPassword;
 
-                let result = {
-                    username: adminInfo.username,
-                    password: newPassword,
-                    name: adminInfo.name
-                };
-                result = JSON.stringify(result);
+        let result = {
+          username: adminInfo.username,
+          password: newPassword,
+          name: adminInfo.name,
+        };
+        result = JSON.stringify(result);
 
-                fs.writeFile("./config/login.json", result, "utf-8", (err) => {
-                    if(!err) { return res.status(200).end(); }
-                    else { return res.status(500).end(); }
-                });
-            }
-            else {
-                return res.status(401).end();
-            }
-        }
-    });
+        fs.writeFile("./config/login.json", result, "utf-8", (error) => {
+          delete result.password;
+          if (!error) return res.status(200).send(result);
+          else return res.status(500).end();
+        });
+      } else {
+        return res.status(401).end();
+      }
+    }
+  });
 });
 
 // 요금 변경
-app.put('/api/sales/charge', function(req, res) {
-    let result = req.body.newCharge;
-    result = JSON.stringify({ charge: result });
+app.put("/api/sales/charge", function (req, res) {
+  let result = req.body.newCharge;
+  result = JSON.stringify({ charge: result });
 
-    fs.writeFile("./config/fee.json", result, "utf-8", (err) => {
-        if(!err) { return res.status(200).end(); }
-        else { return res.status(500).end(); }
-    });
+  fs.writeFile("./config/fee.json", result, "utf-8", (err) => {
+    if (!err) {
+      const data = {
+        oldCharge: req.body.newCharge,
+        newCharge: "",
+      };
+      return res.status(200).json(data);
+    } else {
+      return res.status(500).end();
+    }
+  });
 });
 
 // 측정 주기 변경
-app.put("/api/setting/period", function(req, res) {
-    let result = req.body.newPeriod;
-    result = JSON.stringify({ period: result });
+app.put("/api/setting/period", function (req, res) {
+  let result = req.body.newPeriod;
+  result = JSON.stringify({ period: result });
 
-    fs.writeFile("./config/measure.json", result, "utf-8", (err) => {
-        if(!err) { return res.status(200).end(); }
-        else { return res.status(500).end(); }
-    });
+  fs.writeFile("./config/measure.json", result, "utf-8", (err) => {
+    if (!err) {
+      const data = {
+        oldPeriod: req.body.newPeriod,
+        newPeriod: "",
+      };
+      res.status(200).json(data);
+    } else {
+      res.status(500).end();
+    }
+  });
 });
 
 // fee.json 응답 라우터
-app.get("/api/sales/charge", function(req, res) {
-    fs.readFile("./config/fee.json", "utf-8", (err, data) => {
-        if(err) {
-            return res.status(500).end();
-        }
-        else {
-            let temp = JSON.parse(data);
-            let feeData = {
-                oldCharge: temp.charge,
-                newCharge: ""
-            };
+app.get("/api/sales/charge", function (req, res) {
+  fs.readFile("./config/fee.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      const temp = JSON.parse(data);
+      const feeData = {
+        oldCharge: temp.charge,
+        newCharge: "",
+      };
 
-            return res.status(200).json(feeData);
-        }
-    });
+      return res.status(200).json(feeData);
+    }
+  });
 });
 
 // measure.json 응답 라우터
-app.get("/measure", function(req, res) {
-    fs.readFile("./config/measure.json", "utf-8", (err, data) => {
-        if(err) {
-            return res.status(500).end();
-        }
-        else {
-            let temp = JSON.parse(data);
-            let measureData = {
-                oldPeriod: temp.period,
-                newPeriod: ""
-            };
+app.get("/api/setting/period", function (req, res) {
+  fs.readFile("./config/measure.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      const temp = JSON.parse(data);
+      const measureData = {
+        oldPeriod: temp.period,
+        newPeriod: "",
+      };
 
-            return res.status(200).json(measureData);
-        }
-    });
+      return res.status(200).json(measureData);
+    }
+  });
 });
 
-// 모듈 상태 조회
-app.get("/api/control/status", function(req, res) {
-    fs.readFile("./config/control.json", "utf-8", (err, data) => {
-        if(err) {
-            return res.status(500).end();
-        }
-        else {
-            let controlData = JSON.parse(data);
+// 세션 확인
+app.get("/api/auth/check", function (req, res) {
+  if (req.session.username && req.session.name) {
+    const data = {
+      username: req.session.username,
+      name: req.session.name,
+    };
+    return res.status(200).json(data);
+  } else {
+    return res.status(401).end();
+  }
+});
 
-            return res.status(200).json(controlData);
-        }
-    });
+// 세션 삭제
+app.get("/api/auth/logout", function (req, res) {
+  req.session.destroy();
+
+  return res.status(204).end();
 });
 
 // 모듈 상태 변경
-app.put("/api/control/status", function(req, res) {
-    fs.readFile("./config/control.json", "utf-8", (err, data) => {
-        if(err) {
-            return res.status(500).end();
+app.put("/api/control/status", function (req, res) {
+  fs.readFile("./config/control.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      let temp = JSON.parse(data);
+      temp = temp["control"];
+
+      let name = req.body.name;
+      let status = req.body.status;
+
+      for (let i = 0; i < temp.length; i++) {
+        if (temp[i]["name"] == name) {
+          temp[i]["status"] = status;
         }
-        else {
-            let temp = JSON.parse(data);
-            temp = temp["control"];
-            
-            let name = req.body.name;
-            let status = req.body.status;
+      }
 
-            for(let i = 0; i < temp.length; i++) {
-                if(temp[i]["name"] == name) {
-                    temp[i]["status"] = status;
-                }
-            }
+      let controlData = {};
+      controlData["control"] = temp;
+      const Data = JSON.stringify(controlData);
 
-            let controlData = {};
-            controlData["control"] = temp;
-            controlData = JSON.stringify(controlData);
-
-            fs.writeFile("./config/control.json", controlData, "utf-8", (err) => {
-                if(err) {
-                    return res.status(500).end();
-                }
-                else {
-                    return res.status(200).end();
-                }
-            });
+      fs.writeFile("./config/control.json", Data, "utf-8", (err) => {
+        if (err) {
+          return res.status(500).end();
+        } else {
+          return res.status(200).send(controlData.control);
         }
-    });
+      });
+    }
+  });
+});
+
+// 모듈 상태 조회
+app.get("/api/control/status", function (req, res) {
+  fs.readFile("./config/control.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      let controlData = JSON.parse(data);
+      return res.status(200).json(controlData.control);
+    }
+  });
 });
 
 // 모듈 초기화
-app.get("/api/control/init", function(req, res) {
-    
-    // control.json >>> tempControl.json 복사
-    fs.readFile("./config/control.json", "utf-8", (err, data) => {
-        if(err) { return res.status(500).end(); }
-        else {
-            let temp = JSON.parse(data);
-            let statusTemp = temp["control"];
+app.get("/api/control/init", function (req, res) {
+  // control.json >>> tempControl.json 복사
+  fs.readFile("./config/control.json", "utf-8", (err, data) => {
+    if (err) {
+      return res.status(500).end();
+    } else {
+      let temp = JSON.parse(data);
+      let statusTemp = temp["control"];
 
-            temp = JSON.stringify(temp);
+      temp = JSON.stringify(temp);
 
-            fs.writeFile("./config/tempControl.json", temp ,"utf-8", (err) => {
-                if(err) { return res.status(500).end(); }
-            });
-
-            // control.json의 모든 status 값 false로 변경
-            for(let i = 0; i < statusTemp.length; i++) {
-                statusTemp[i]["status"] = false;
-            }
-
-            statusNew = {};
-            statusNew["control"] = statusTemp;
-            statusNew = JSON.stringify(statusNew);
-
-            fs.writeFile("./config/control.json", statusNew, "utf-8", (err) => {
-                if(err) { return res.status(500).end(); }
-            });
-
-            // 3초 대기
-            // tempControl.json >>> control.json 붙여넣기
-            setTimeout(function() {
-                fs.readFile("./config/tempControl.json", "utf-8", (err, data) => {
-                    if(err) { return res.status(500).end(); }
-                    else {
-                        let original = JSON.parse(data);
-                        original = JSON.stringify(original);
-
-                        fs.writeFile("./config/control.json", original, "utf-8", (err) => {
-                            if(err) { return res.status(500).end(); }
-                            else {
-                                // 원상복구 응답
-                                fs.readFile("./config/control.json", "utf-8", (err, data) => {
-                                    if(err) { return res.status(500).end(); }
-                                    else {
-                                        let controlData = JSON.parse(data);
-                                        controlData = controlData["control"];
-
-                                        return res.status(200).json(controlData);
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
-            }, 3000);
+      fs.writeFile("./config/tempControl.json", temp, "utf-8", (err) => {
+        if (err) {
+          return res.status(500).end();
         }
-    });
+      });
+
+      // control.json의 모든 status 값 false로 변경
+      for (let i = 0; i < statusTemp.length; i++) {
+        statusTemp[i]["status"] = false;
+      }
+
+      statusNew = {};
+      statusNew["control"] = statusTemp;
+      statusNew = JSON.stringify(statusNew);
+
+      fs.writeFile("./config/control.json", statusNew, "utf-8", (err) => {
+        if (err) {
+          return res.status(500).end();
+        }
+      });
+
+      // 3초 대기
+      // tempControl.json >>> control.json 붙여넣기
+      setTimeout(function () {
+        fs.readFile("./config/tempControl.json", "utf-8", (err, data) => {
+          if (err) {
+            return res.status(500).end();
+          } else {
+            let original = JSON.parse(data);
+            original = JSON.stringify(original);
+
+            fs.writeFile("./config/control.json", original, "utf-8", (err) => {
+              if (err) {
+                return res.status(500).end();
+              } else {
+                // 원상복구 응답
+                fs.readFile("./config/control.json", "utf-8", (err, data) => {
+                  if (err) {
+                    return res.status(500).end();
+                  } else {
+                    let controlData = JSON.parse(data);
+                    controlData = controlData["control"];
+
+                    console.log(controlData);
+                    return res.status(200).json(controlData);
+                  }
+                });
+              }
+            });
+          }
+        });
+      }, 3000);
+    }
+  });
 });
 
 // synchronous DB
@@ -351,6 +370,7 @@ app.get("/api/graph/usage", function(req, res) {
 
 // 주차 상황판
 app.get("/api/board/parking", function(req, res) {
+console.log('test');
     let parkingList = connection.query(
         "SELECT n.position, n.car_num, c.start_time FROM parkcar as c RIGHT OUTER JOIN parknow as n ON c.car_num = n.car_num;"
     );
@@ -382,7 +402,7 @@ app.get("/api/board/parking", function(req, res) {
     }
 
     parkingData = JSON.stringify(parkingData);
-
+console.log(parkingData);
     return res.status(200).send(parkingData);
 });
 
@@ -413,3 +433,4 @@ app.listen(4000, function () {
         return year + "-" + month + "-" + day + " " + this.getHours() + ":" + this.getMinutes() + ":" + this.getSeconds();
     }
 })();
+

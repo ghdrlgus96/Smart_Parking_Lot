@@ -7,13 +7,11 @@ const ws281x = require('@bartando/rpi-ws281x-neopixel');
 const axios=require('axios');
 const FormData=require('form-data');
 const fs=require('fs');
-const readline=require('readline'); 
-
+const readline=require('readline');
 
 const test = require('./modules/test.js');
-
 const logger = require("./log.js")
- 
+
 const SPI_SPEED = 1000000;
 const NUM_LEDS = 12;
 
@@ -24,14 +22,12 @@ const park0Blue = 28;
 const park1Red = 6;
 const park1Blue = 26;
 
-
 const accelTrig1 = 0;
 const accelEcho1 = 2;
 const accelTrig2 = 3;
 const accelEcho2 = 21;
 const accelTrig3 = 22;
 const accelEcho3 = 23;
-
 
 const accelTrig = 24;
 const accelEcho = 25;
@@ -82,9 +78,6 @@ const LEDon = (color, max) => {
     ws281x.show();
   }
 }
-
-
-
 
 let connection = mysql.createConnection({
     host: 'localhost',
@@ -151,8 +144,6 @@ const double_parking_6 = mcpadc.openMcp3208(DOUBLE_PARKING_6, {speedHz: SPI_SPEE
     if(err) { console.log('double_parking_6 fail!'); }
 });
 
-
-
 const park_in = mcpadc.openMcp3208(PARK_IN, {speedHz: SPI_SPEED}, (err) => {
     console.log('park in init...');
     if(err) { console.log('park in fail!'); }
@@ -163,60 +154,52 @@ const park_out = mcpadc.openMcp3208(PARK_OUT, {speedHz: SPI_SPEED, deviceNumber:
     if(err) { console.log('park out fail!'); }
 });
 
-
-
-
 // Main Controller
 const mainController = () => {
-    var result = fs.readFileSync('./config.json', 'utf8');
+    var result = fs.readFileSync('./config/control.json', 'utf8');
     result = JSON.parse(result);
+    data = result['control'];
 
-    result.forEach((data, index) => {
-    if(data.test == true) {
-        count = (count == 1)? 0: 1;
-        test.test(count);
-    }
-
-    if(data.accel == true) {
+    if(data[0].status == true) {
         //accel();
         //accel1();
         accel2();
         //accel3();
     }
 
-    if(data.elev == true) {
+    if(data[1].status == true) {
         elev();
     }
 
     // 주차 차량 감지
-    if(data.parking == true) {
+    if(data[2].status == true) {
         carParking();
     }
 
     // 두 자리 주차 차량 감지
-    if(data.double_parking == true) {
+    if(data[3].status == true) {
         gpio.digitalWrite(RAZER, 1);
         carDoubleParking();
         gpio.digitalWrite(RAZER, 1);
     }
 
-    if(data.maxCar == true) {
+    if(data[4].status == true) {
         maxCar();
     }
 
-    if(data.parkInOut == true) {
+    if(data[5].status == true) {
       park_in_out();
     }
-});
 
-if(warningBuzzer == 1) {
+    if(warningBuzzer == 1) {
         warningBuzzer = 0;
 
         gpio.digitalWrite(BUZZER, 1);
         setTimeout(turnOffBuzzer, 1000);
     }
-
-    setTimeout(mainController, 500);
+    let result10 = fs.readFileSync('./config/measure.json', 'utf8');
+    result10 = JSON.parse(result10);
+    setTimeout(mainController, result10.period);
 }
 
 const accel = () => {
@@ -250,8 +233,6 @@ const accel = () => {
     console.log("0 : " + distance);
     //console.log(accelCount);
 }
-
-
 
 const accel1 = () => {
     gpio.digitalWrite(accelTrig1, gpio.LOW);
@@ -309,7 +290,7 @@ const accel2 = () => {
 
     if(accelCount2 > 3) {
         accelCount2 = 0;
-	logger.log("error", "404 : 일방통행 역주행");
+   logger.log("error", "404 : 일방통행 역주행");
         warningBuzzer = 1;
     }
 
@@ -349,20 +330,11 @@ const accel3 = () => {
     //console.log(accelCount);
 }
 
-
-
-
-
-
-
-
 const turnOffBuzzer = () => {
     gpio.digitalWrite(BUZZER, 0);
 }
 
 var elevCount = 0;
-
-
 
 const elev = () => {
   if(elevCount == 0) {
@@ -377,7 +349,7 @@ const elev = () => {
 
     if(elev_up_lightdata > 2200) {
         elevCount = 1;
-	logger.log("info", "203 : 엘리베이터 작동 elevup ");
+   logger.log("info", "203 : 엘리베이터 작동 elevup ");
         request.get(
             {
                 url:url + '/elevup',
@@ -394,7 +366,7 @@ const elev = () => {
     }
     else if(elev_down_lightdata > 2200) {
         elevCount = 1;
-	logger.log("info", "203 : 엘리베이터 작동 elevdown");
+   logger.log("info", "203 : 엘리베이터 작동 elevdown");
         request.get(
             {
                 url:url + '/elevdown',
@@ -416,10 +388,6 @@ const elevCountChange = () => {
   elevCount = 0;
 }
 
-
-
-
-
 (function() {
     Date.prototype.toYMD = Date_toYMD;
     function Date_toYMD() {
@@ -437,7 +405,22 @@ const elevCountChange = () => {
     }
 })();
 
-
+(function() {
+    Date.prototype.toYMDAPI = Date_toYMDAPI;
+    function Date_toYMDAPI() {
+        var year, month, day;
+        year = String(this.getFullYear());
+        month = String(this.getMonth() + 1);
+        if (month.length == 1) {
+            month = "0" + month;
+        }
+        day = String(this.getDate() - 1);
+        if (day.length == 1) {
+            day = "0" + day;
+        }
+        return year + "-" + month + "-" + day + " " + this.getHours() + ":" + this.getMinutes() + ":" + this.getSeconds();
+    }
+})();
 
 // 주차 차량 감지
 let n = 3000;                           // 현재 3초
@@ -475,12 +458,14 @@ const carParking = () => {
                    if(err) {
                        console.log("DB: 주차 0번 parknow 테이블 수정 실패!");
                        console.log(err);
-		       logger.log("error", "400 : 주차 0번 parknow 테이블 수정 실패");
+             logger.log("error", "400 : 주차 0번 parknow 테이블 수정 실패");
                    }
                    else {
                        console.log("DB: 주차 0번 parknow 테이블 수정 성공!");
-		       logger.log("info", "200 : 주차 0번 parknow 테이블 수정 성공");
+             logger.log("info", "200 : 주차 0번 parknow 테이블 수정 성공");
 
+                    // web socket
+                    io.emit('parking-data');
                    }
                });
 
@@ -524,13 +509,15 @@ const carParking = () => {
                  if(err) {
                      console.log("DB: 주차 0번 parknow 테이블 수정 실패!");
                      console.log(err);
-		     logger.log("error", "400 : 주차 0번 parknow 테이블 수정 실패");
+           logger.log("error", "400 : 주차 0번 parknow 테이블 수정 실패");
 
 
                  }
                  else {
                      console.log("DB: 주차 0번 parknow 테이블 수정 성공!");
-		       logger.log("info", "200 : 주차 0번 parknow 테이블 수정 성공");
+                    logger.log("info", "200 : 주차 0번 parknow 테이블 수정 성공");
+
+                    io.emit('parking-data');
                  }
              });
            }
@@ -567,13 +554,16 @@ const carParking = () => {
                    if(err) {
                        console.log("DB: 주차 1번 parknow 테이블 저장 실패!");
                        console.log(err);
-		     logger.log("error", "400 : 주차 0번 parknow 테이블 수정 실패");
+           logger.log("error", "400 : 주차 0번 parknow 테이블 수정 실패");
 
                    }
                    else {
                        console.log("DB: 주차 1번 parknow 테이블 저장 성공!");
                        console.log('asd' + nowInCar);
-		       logger.log("info", "200 : 주차 0번 parknow 테이블 수정 성공");
+                        logger.log("info", "200 : 주차 0번 parknow 테이블 수정 성공");
+
+                        // web socket
+                        io.emit('parking-data');
                    }
                });
 
@@ -618,14 +608,15 @@ const carParking = () => {
                  if(err) {
                      console.log("DB: 주차 1번 parknow 테이블 수정 실패!");
                      console.log(err);
-		     logger.log("error", "400 : 주차 1번 parknow 테이블 수정 실패");
+           logger.log("error", "400 : 주차 1번 parknow 테이블 수정 실패");
 
 
                  }
                  else {
                      console.log("DB: 주차 1번 parknow 테이블 수정 성공!");
-		       logger.log("info", "200 : 주차 1번 parknow 테이블 수정 성공");
+                    logger.log("info", "200 : 주차 1번 parknow 테이블 수정 성공");
 
+                    io.emit('parking-data');
                  }
              });
            }
@@ -663,11 +654,14 @@ const carParking = () => {
                    if(err) {
                        console.log("DB: 주차 2번 parknow 테이블 저장 실패!");
                        console.log(err);
-		       logger.log("error", "400 : 주차 2번 parknow 테이블 수정 성공");
+             logger.log("error", "400 : 주차 2번 parknow 테이블 수정 성공");
                    }
                    else {
                        console.log("DB: 주차 2번 parknow 테이블 저장 성공!");
-		       logger.log("info", "200 : 주차 2번 parknow 테이블 수정 성공");
+                        logger.log("info", "200 : 주차 2번 parknow 테이블 수정 성공");
+
+                        // web socket
+                        io.emit('parking-data');
                    }
                });
 
@@ -711,11 +705,13 @@ const carParking = () => {
                  if(err) {
                      console.log("DB: 주차 2번 parknow 테이블 수정 실패!");
                      console.log(err);
-		       logger.log("error", "400 : 주차 2번 parknow 테이블 수정 성공");
+             logger.log("error", "400 : 주차 2번 parknow 테이블 수정 성공");
                  }
                  else {
                      console.log("DB: 주차 2번 parknow 테이블 수정 성공!");
-		       logger.log("info", "200 : 주차 2번 parknow 테이블 수정 성공");
+                logger.log("info", "200 : 주차 2번 parknow 테이블 수정 성공");
+
+                io.emit('parking-data');
                  }
              });
            }
@@ -743,7 +739,7 @@ const carDoubleParking = () => {
             //console.log("double_time_5: %d", double_time_5);
 
             if(double_time_5 >= n) {
-	    	logger.log("error", "401 : 두자리 주차 차량 감지, double_time_5 BUZZER ON");
+          logger.log("error", "401 : 두자리 주차 차량 감지, double_time_5 BUZZER ON");
                 console.log("double_parking_5: BUZZER ON!");
                 gpio.digitalWrite(BUZZER, 1);
                 double_time_5 = 0;
@@ -771,7 +767,7 @@ const carDoubleParking = () => {
             //console.log("double_time_6: %d", double_time_6);
 
             if(double_time_6 >= n) {
-	    	logger.log("error", "401 : 두자리 주차 차량 감지, double_time_6: BUZZER ON");
+          logger.log("error", "401 : 두자리 주차 차량 감지, double_time_6: BUZZER ON");
                 console.log("double_time_6: BUZZER ON!");
                 gpio.digitalWrite(BUZZER, 1);
                 double_time_6 = 0;
@@ -786,8 +782,6 @@ const carDoubleParking = () => {
         double_lightdata_6 = -1;
     }
 }
-
-
 
 const maxCar = () => {
 
@@ -808,23 +802,411 @@ const maxCar = () => {
 }
 
 const rl=readline.createInterface({
-  input:process.stdin,
-  output:process.stdout,
+    input:process.stdin,
+    output:process.stdout,
 });
 
-
-
-
-
-//키오스크 코드 kiosk
+// 키오스크 코드 kiosk
 var app = require('express')();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
+// server.js 통합
+const bodyParser = require('body-parser');
+const session = require('express-session');
+const cookieParser = require("cookie-parser");
+
+// post 분석을 위한 bodyParser
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+    extended: false
+}));
+
+// 세션 설정
+app.use(cookieParser("keyboard cat"));
+app.use(
+  session({
+    resave: false,
+    saveUninitialized: false,
+    secret: "keyboard cat",
+    cookie: {
+      httpOnly: true,
+      secure: false,
+    },
+  })
+);
+
+// 로그인
+app.post("/api/auth/login", function (req, res) {
+    fs.readFile("./config/login.json", "utf-8", (err, data) => {
+        if (err) {
+            return res.status(500).end();
+        } else {
+        let login = JSON.parse(data);
+
+        if (
+            login.username == req.body.username &&
+            login.password == req.body.password
+        ) {
+            let result = { username: login.username, name: login.name };
+            result = JSON.stringify(result);
+
+            req.session.username = login.username;
+            req.session.name = login.name;
+
+            return res.status(200).send(result);
+        } else {
+            return res.status(401).end();
+        }
+        }
+    });
+});
+
+// 비밀번호 변경
+app.put("/api/auth/register", function (req, res) {
+    fs.readFile("./config/login.json", "utf-8", (err, data) => {
+        if (err) {
+        return res.status(500).end();
+        } else {
+        let adminInfo = JSON.parse(data);
+
+        if (
+            adminInfo.username == req.body.username &&
+            adminInfo.password == req.body.oldPassword
+        ) {
+            let newPassword = req.body.newPassword;
+
+            let result = {
+            username: adminInfo.username,
+            password: newPassword,
+            name: adminInfo.name,
+            };
+            result = JSON.stringify(result);
+
+            fs.writeFile("./config/login.json", result, "utf-8", (error) => {
+            delete result.password;
+            if (!error) return res.status(200).send(result);
+            else return res.status(500).end();
+            });
+        } else {
+            return res.status(401).end();
+        }
+        }
+    });
+});
+
+// 요금 변경
+app.put("/api/sales/charge", function (req, res) {
+    let result = req.body.newCharge;
+    result = JSON.stringify({ charge: result });
+
+    fs.writeFile("./config/fee.json", result, "utf-8", (err) => {
+        if (!err) {
+        const data = {
+            oldCharge: req.body.newCharge,
+            newCharge: "",
+        };
+        return res.status(200).json(data);
+        } else {
+        return res.status(500).end();
+        }
+    });
+});
+
+// 측정 주기 변경
+app.put("/api/setting/period", function (req, res) {
+    let result = req.body.newPeriod;
+    result = JSON.stringify({ period: result });
+
+    fs.writeFile("./config/measure.json", result, "utf-8", (err) => {
+        if (!err) {
+        const data = {
+            oldPeriod: req.body.newPeriod,
+            newPeriod: "",
+        };
+        res.status(200).json(data);
+        } else {
+        res.status(500).end();
+        }
+    });
+});
+
+// fee.json 응답 라우터
+app.get("/api/sales/charge", function (req, res) {
+    fs.readFile("./config/fee.json", "utf-8", (err, data) => {
+        if (err) {
+        return res.status(500).end();
+        } else {
+        const temp = JSON.parse(data);
+        const feeData = {
+            oldCharge: temp.charge,
+            newCharge: "",
+        };
+
+        return res.status(200).json(feeData);
+        }
+    });
+});
+
+// measure.json 응답 라우터
+app.get("/api/setting/period", function (req, res) {
+    fs.readFile("./config/measure.json", "utf-8", (err, data) => {
+        if (err) {
+        return res.status(500).end();
+        } else {
+        const temp = JSON.parse(data);
+        const measureData = {
+            oldPeriod: temp.period,
+            newPeriod: "",
+        };
+
+        return res.status(200).json(measureData);
+        }
+    });
+});
+
+// 세션 확인
+app.get("/api/auth/check", function (req, res) {
+    if (req.session.username && req.session.name) {
+        const data = {
+        username: req.session.username,
+        name: req.session.name,
+        };
+        return res.status(200).json(data);
+    } else {
+        return res.status(401).end();
+    }
+});
+
+// 세션 삭제
+app.get("/api/auth/logout", function (req, res) {
+    req.session.destroy();
+
+    return res.status(204).end();
+});
+
+// 모듈 상태 변경
+app.put("/api/control/status", function (req, res) {
+    fs.readFile("./config/control.json", "utf-8", (err, data) => {
+        if (err) {
+        return res.status(500).end();
+        } else {
+        let temp = JSON.parse(data);
+        temp = temp["control"];
+
+        let name = req.body.name;
+        let status = req.body.status;
+
+        for (let i = 0; i < temp.length; i++) {
+            if (temp[i]["name"] == name) {
+            temp[i]["status"] = status;
+            }
+        }
+
+        let controlData = {};
+        controlData["control"] = temp;
+        const Data = JSON.stringify(controlData);
+
+        fs.writeFile("./config/control.json", Data, "utf-8", (err) => {
+            if (err) {
+            return res.status(500).end();
+            } else {
+            return res.status(200).send(controlData.control);
+            }
+        });
+        }
+    });
+});
+
+// 모듈 상태 조회
+app.get("/api/control/status", function (req, res) {
+    fs.readFile("./config/control.json", "utf-8", (err, data) => {
+        if (err) {
+        return res.status(500).end();
+        } else {
+        let controlData = JSON.parse(data);
+        return res.status(200).json(controlData.control);
+        }
+    });
+});
+
+// 모듈 초기화
+app.get("/api/control/init", function (req, res) {
+    // control.json >>> tempControl.json 복사
+    fs.readFile("./config/control.json", "utf-8", (err, data) => {
+        if (err) {
+        return res.status(500).end();
+        } else {
+        let temp = JSON.parse(data);
+        let statusTemp = temp["control"];
+
+        temp = JSON.stringify(temp);
+
+        fs.writeFile("./config/tempControl.json", temp, "utf-8", (err) => {
+            if (err) {
+            return res.status(500).end();
+            }
+        });
+
+        // control.json의 모든 status 값 false로 변경
+        for (let i = 0; i < statusTemp.length; i++) {
+            statusTemp[i]["status"] = false;
+        }
+
+        statusNew = {};
+        statusNew["control"] = statusTemp;
+        statusNew = JSON.stringify(statusNew);
+
+        fs.writeFile("./config/control.json", statusNew, "utf-8", (err) => {
+            if (err) {
+            return res.status(500).end();
+            }
+        });
+
+        // 3초 대기
+        // tempControl.json >>> control.json 붙여넣기
+        setTimeout(function () {
+            fs.readFile("./config/tempControl.json", "utf-8", (err, data) => {
+            if (err) {
+                return res.status(500).end();
+            } else {
+                let original = JSON.parse(data);
+                original = JSON.stringify(original);
+
+                fs.writeFile("./config/control.json", original, "utf-8", (err) => {
+                if (err) {
+                    return res.status(500).end();
+                } else {
+                    // 원상복구 응답
+                    fs.readFile("./config/control.json", "utf-8", (err, data) => {
+                    if (err) {
+                        return res.status(500).end();
+                    } else {
+                        let controlData = JSON.parse(data);
+                        controlData = controlData["control"];
+
+                        console.log(controlData);
+                        return res.status(200).json(controlData);
+                    }
+                    });
+                }
+                });
+            }
+            });
+        }, 3000);
+        }
+    });
+});
+
+// 그래프 출력
+// 매출
+app.get("/api/graph/sales", function(req, res) {
+
+    // 객체로 날아옴
+    let fromDate = req.query.from;
+    let toDate = req.query.to;
+
+    // Date 객체로 변경
+    // Date 객체를 String 객체로 파싱
+    fromDate = new Date(fromDate).toYMDAPI();
+    toDate = new Date(toDate).toYMD();
+
+    let salesData = sql.query(
+        "SELECT DATE_FORMAT(end_time, '%y-%m-%d') as date, sum(pay) as sales FROM parklog where end_time BETWEEN '" + fromDate + "' AND '" + toDate + "' GROUP BY date;"
+    );
+
+    for(let i = 0; i < salesData; i++) {
+        salesData[i].sales /= 1000;     // 천단위
+    }
+
+    return res.status(200).send(salesData);
+});
+
+// 사용률
+app.get("/api/graph/usage", function(req, res) {
+    let usageList = [];                 // 주차 자리 9개 차있다고 가정
+    for(let i = 0; i < 24; i++) {
+        usageList[i] = 9;
+    }
+    let parkSpace = 12;                 // 주차 자리 12개
+
+    let reqDate = req.query.date;
+    reqDate = new Date(reqDate).toYMDAPI().substring(0, 11);
+
+    let logData = sql.query(
+        "SELECT DATE_FORMAT(start_time, '%H') as startTime, DATE_FORMAT(end_time, '%H') as endTime from parklog WHERE DATE_FORMAT(end_time, '%Y-%m-%d') = '" + reqDate + "';"
+    );
+
+    for(let i = 0; i < logData.length; i++) {
+        let start = parseInt(logData[i].startTime);
+        let end = parseInt(logData[i].endTime);
+        let idx = end - start;
+
+        for(let j = start; j < start + idx; j++) {
+            usageList[j] += 1;
+        }
+    }
+
+    let usageData = [];
+    for(let i = 0; i < usageList.length; i++) {
+        let usageDict = {};
+
+        let usageVal = (usageList[i] / parkSpace) * 100;        // 비율 계산
+
+        let timeIdx = String(i);
+        if(timeIdx.length == 1) {
+            timeIdx = "0" + timeIdx;
+        }
+
+        usageDict["date"] = timeIdx;
+        usageDict["usage"] = usageVal;
+
+        usageData.push(usageDict);
+    }
+    console.log(usageData);
+
+    return res.status(200).send(usageData);
+});
+
+// 주차 상황판
+app.get("/api/board/parking", function(req, res) {
+    let parkingList = sql.query(
+        "SELECT n.position, n.car_num, c.start_time FROM parkcar as c RIGHT OUTER JOIN parknow as n ON c.car_num = n.car_num;"
+    );
+
+    // 시간당 요금 추출
+    let chargeFee = fs.readFileSync('./config/fee.json', 'utf8');
+    chargeFee = JSON.parse(chargeFee);
+
+    let parkingData = [];
+    for(let i = 0; i < parkingList.length; i++) {
+        let parkingDict = {};
+        if(parkingList[i].car_num == null) {
+            parkingData.push(false);
+        }
+        else {
+            parkingDict["number"] = parkingList[i].car_num;
+            parkingDict["start"] = parkingList[i].start_time;
+
+            // 요금 계산
+            let startTime = new Date(parkingDict["start"]);
+            let nowTime = new Date();
+            let parkingFee = chargeFee.charge * (parseInt((nowTime.getTime() - startTime.getTime()) / 3600000) + 1);
+
+            parkingDict["fee"] = parkingFee;
+
+            parkingData.push(parkingDict);
+        }
+    }
+
+    parkingData = JSON.stringify(parkingData);
+
+    return res.status(200).send(parkingData);
+});
 
 io.on('connection', function (socket) {
     socket.on('payment', function () {
-        //결제됨 출차기 작동
+        // 결제됨, 출차기 작동
         console.log("결제완료 출차기 open")
               request.get(
                 {
@@ -832,7 +1214,6 @@ io.on('connection', function (socket) {
                   headers: {'content-type':'application/json'}
                 },
                 function (err, res, body) {
-                  //let data = JSON.parse(body);
                   if(!err && res.statusCode == 200) {
                     console.log('send!');
                   }
@@ -840,10 +1221,7 @@ io.on('connection', function (socket) {
               );
 
               setTimeout(setOutCount, 3000);
-
-	
     });
-
 });
 
 app.get('/', function (req, res) {
@@ -851,29 +1229,14 @@ app.get('/', function (req, res) {
     res.sendFile(__dirname + '/kiosk.html');
 });
 
-
 app.get('/msg', function (req, res) {
     res.sendFile(__dirname + '/kioskmsg.html');
 });
 
-
- 
-
 server.listen(65002, function () {
     console.log('키오스크 서버 작동 port:65002');
     //테스트용 차가 나가는 걸 만들어주는 함수
-
 });
-
- 
-
-
-
-
-
-
-
-
 
 let park_in_count = 0;
 let park_out_count = 0;
@@ -919,7 +1282,7 @@ const park_in_out = () => {
                 console.log(res.data);
                 nowInCar = res.data;
                 let result1 = sql.query('insert into parkcar values ("' + res.data + '", sysdate())');
-		logger.log("info", "201 : 입차 차량 번호 : "+res.data+" 입차 완료 ");
+      logger.log("info", "201 : 입차 차량 번호 : "+res.data+" 입차 완료 ");
 
             }).then(() => {
               request.get(
@@ -935,7 +1298,6 @@ const park_in_out = () => {
                 }
               );
               setTimeout(setInCount, 3000);
-
             });
           });
         });
@@ -970,13 +1332,10 @@ const park_in_out = () => {
                 let result5 = sql.query('delete from parkcar where car_num="' + res.data + '"');
 
                 let kiosk_result = sql.query('select car_num, pay from parklog where car_num ="'+res.data+'" ORDER BY end_time;');
-		let kiosk_lent = kiosk_result.length;
-		console.log("pay",res.data, kiosk_result[kiosk_lent-1].pay)
-		io.emit("pay",res.data, kiosk_result[kiosk_lent-1].pay);
-		logger.log("info", "202 : 출차 요청 차량 번호 : "+res.data);
-
-
-
+      let kiosk_lent = kiosk_result.length;
+      console.log("pay",res.data, kiosk_result[kiosk_lent-1].pay)
+      io.emit("pay",res.data, kiosk_result[kiosk_lent-1].pay);
+      logger.log("info", "202 : 출차 요청 차량 번호 : "+res.data);
             }).then(()=>{
             });
           });
@@ -993,11 +1352,6 @@ const park_in_out = () => {
     park_out_count = 0;
   }
 }
-
-
-
-
-
 
 process.on('SIGINT', () => {
   gpio.digitalWrite(BUZZER, 0);
@@ -1016,6 +1370,7 @@ process.on('SIGINT', () => {
 
 // initialization (modules)
 gpio.wiringPiSetup();
+
 gpio.pinMode(accelTrig, gpio.OUTPUT);
 gpio.pinMode(accelEcho, gpio.INPUT);
 gpio.pinMode(accelTrig1, gpio.OUTPUT);
@@ -1042,14 +1397,4 @@ gpio.digitalWrite(park0Red, 1);
 
 //exports.mainController = mainController;
 
-
-
-
-    logger.log("info", "200 : 스마트 주차장 시스템 시작")
-
- 
-
-
-
-
-
+logger.log("info", "200 : 스마트 주차장 시스템 시작")
