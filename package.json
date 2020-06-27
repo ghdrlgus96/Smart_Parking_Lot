@@ -1,0 +1,15 @@
+{
+  "name": "mypgm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@bartando/rpi-ws281x-neopixel": "^1.0.1",
+    "node-wiring-pi": "0.0.5"
+  }
+}

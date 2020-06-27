@@ -1,0 +1,12 @@
+[
+    {
+        "test":false,
+        "accel":true,
+        "elev":true,
+        "lazer":false,
+        "parking":true,
+        "double_parking":true,
+        "maxCar":true,
+        "parkInOut":true
+    }
+]
